@@ -7,7 +7,7 @@ import ftplib
 import shutil
 import traceback
 import Config
-import pyhttpx
+from curl_cffi import requests as curl_requests
 from Danmu import Danmu
 from bs4 import BeautifulSoup
 import re, time, os, platform, subprocess, requests, random, sys
@@ -31,11 +31,11 @@ class Anime:
         self._temp_dir = self._settings['temp_dir']
         self._gost_port = str(gost_port)
 
-        self._session = requests.session()
         if 'firefox' in self._settings['ua'].lower():
-            self._pyhttpx_session = pyhttpx.HttpSession(browser_type='firefox')
+            impersonate = 'firefox'
         else:
-            self._pyhttpx_session = pyhttpx.HttpSession(browser_type='chrome')
+            impersonate = 'chrome124'
+        self._session = curl_requests.Session(impersonate=impersonate)
         self._title = ''
         self._sn = sn
         self._bangumi_name = ''
@@ -134,7 +134,7 @@ class Anime:
             self._src = self.__request_json(f'https://api.gamer.com.tw/mobile_app/anime/v4/video.php?sn={self._sn}', no_cookies=True)
         else:
             req = f'https://ani.gamer.com.tw/animeVideo.php?sn={self._sn}'
-            f = self.__request(req, no_cookies=True, use_pyhttpx=True)
+            f = self.__request(req, no_cookies=True)
             self._src = BeautifulSoup(f.content, "lxml")
 
     def __get_title(self):
@@ -277,15 +277,10 @@ class Anime:
             cookies = {}
         while True:
             try:
-                if use_pyhttpx:
-                    # https://github.com/miyouzi/aniGamerPlus/issues/249 pyhttpx 作者 在改動
-                    # https://github.com/zero3301/pyhttpx/commit/4735190df741f4c00287ec948f0734fd2c21bfee
-                    # 把 proxy 驗證放到了 proxies URL 裏面
-                    f = self._pyhttpx_session.get(req, headers=current_header, cookies=cookies, timeout=10,
-                                                  proxies=self._proxies)
-                else:
-                    f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10)
-            except requests.exceptions.RequestException as e:
+                proxies = self._proxies if self._proxies else None
+                f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10,
+                                      proxies=proxies)
+            except (requests.exceptions.RequestException, curl_requests.RequestsError) as e:
                 if error_cnt >= max_retry >= 0:
                     raise TryTooManyTimeError('任務狀態: sn=' + str(self._sn) + ' 请求失败次数过多！请求链接：\n%s' % req)
                 err_detail = 'ERROR: 请求失败！except：\n' + str(e) + '\n3s后重试(最多重试' + str(max_retry) + '次)'
@@ -298,12 +293,12 @@ class Anime:
         # 处理 cookie
         if not self._cookies:
             # 当实例中尚无 cookie, 则读取
-            self._cookies = self._session.cookies
+            self._cookies = self._session.cookies.get_dict()
         elif 'nologinuser' not in self._cookies.keys() and 'BAHAID' not in self._cookies.keys():
             # 处理游客cookie
-            if 'nologinuser' in self._session.cookies.keys():
+            if 'nologinuser' in self._session.cookies.get_dict().keys():
                 # self._cookies['nologinuser'] = self._session.cookies['nologinuser']
-                self._cookies = self._session.cookies
+                self._cookies = self._session.cookies.get_dict()
         else:  # 如果用户提供了 cookie, 则处理cookie刷新
             if 'set-cookie' in f.headers.keys():  # 发现server响应了set-cookie
                 if 'deleted' in f.headers.get('set-cookie'):
@@ -350,10 +345,10 @@ class Anime:
                     # 20220115 简化 cookie 刷新逻辑
                     err_print(self._sn, '收到新cookie', display=False)
 
-                    self._cookies.update(self._session.cookies)
+                    self._cookies.update(self._session.cookies.get_dict())
                     Config.renew_cookies(self._cookies, log=False)
 
-                    key_list_str = ', '.join(self._session.cookies.keys())
+                    key_list_str = ', '.join(self._session.cookies.get_dict().keys())
                     err_print(self._sn, f'用戶cookie刷新 {key_list_str} ', display=False)
 
                     self.__request('https://ani.gamer.com.tw/')
@@ -368,10 +363,7 @@ class Anime:
         return f
 
     def __request_json(self, req, no_cookies=False, show_fail=True, max_retry=3, addition_header=None, use_pyhttpx = False):
-        if use_pyhttpx:
-            return self.__request(req, no_cookies, show_fail, max_retry, addition_header, use_pyhttpx).json
-        else:
-            return self.__request(req, no_cookies, show_fail, max_retry, addition_header, use_pyhttpx).json()
+        return self.__request(req, no_cookies, show_fail, max_retry, addition_header, use_pyhttpx).json()
 
     def __get_m3u8_dict(self):
         # m3u8获取模块参考自 https://github.com/c0re100/BahamutAnimeDownloader
