@@ -278,8 +278,7 @@ class Anime:
         while True:
             try:
                 proxies = self._proxies if self._proxies else None
-                f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10,
-                                      proxies=proxies)
+                f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10, proxies=proxies)
             except (requests.exceptions.RequestException, curl_requests.RequestsError) as e:
                 if error_cnt >= max_retry >= 0:
                     raise TryTooManyTimeError('任務狀態: sn=' + str(self._sn) + ' 请求失败次数过多！请求链接：\n%s' % req)
