@@ -8,6 +8,7 @@
 import os, json, re, sys, requests, time, random, codecs, chardet
 import sqlite3
 import socket
+from curl_cffi import requests as curl_requests
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -769,7 +770,28 @@ def renew_cookies(new_cookie, log=True):
         else:
             if log:
                 __color_print(0, '新cookie保存成功', no_sn=True, display=False)
-            break
+                break
+
+
+def bahamut_request(method, url, **kwargs):
+    # 巴哈站點請求統一走 curl-cffi，通過 TLS 指紋驗證
+    settings = read_settings()
+    if 'firefox' in settings['ua'].lower():
+        impersonate = 'firefox'
+    else:
+        impersonate = 'chrome124'
+    headers = dict(kwargs.pop('headers', None) or {})
+    if not any(k.lower() == 'user-agent' for k in headers):
+        headers['User-Agent'] = settings['ua']
+    kwargs['headers'] = headers
+    if settings.get('use_proxy') and settings.get('proxy'):
+        kwargs['proxies'] = {'https': settings['proxy'], 'http': settings['proxy']}
+    kwargs.setdefault('timeout', 10)
+    session = curl_requests.Session(impersonate=impersonate)
+    try:
+        return session.request(method, url, **kwargs)
+    except curl_requests.RequestsError as e:
+        raise requests.exceptions.RequestException(str(e)) from e
 
 
 def read_latest_version_on_github():
