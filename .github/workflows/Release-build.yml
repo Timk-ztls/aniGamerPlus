@@ -33,13 +33,22 @@ jobs:
     - name: Set up ENV
       run: |
         chcp 65001
-        echo ("RELEASE_VERSION=" + $env:GITHUB_REF.replace('refs/tags/', '')) >> $env:GITHUB_ENV
-        echo ("RELEASE_TITLE=aniGamerPlus_" + $env:GITHUB_REF.replace('refs/tags/', '') + "_windows_64bit") >> $env:GITHUB_ENV
-        echo ("RELEASE_FILENAME=aniGamerPlus_" + $env:GITHUB_REF.replace('refs/tags/', '') + "_windows_64bit.zip") >> $env:GITHUB_ENV
+        if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+          $version = "${{ inputs.version }}"
+        } else {
+          $version = "${{ github.ref_name }}"
+        }
+        echo ("RELEASE_VERSION=" + $version) >> $env:GITHUB_ENV
+        echo ("RELEASE_TITLE=aniGamerPlus_" + $version + "_windows_64bit") >> $env:GITHUB_ENV
+        echo ("RELEASE_FILENAME=aniGamerPlus_" + $version + "_windows_64bit.zip") >> $env:GITHUB_ENV
         git fetch --tags --force
     - name: Get tag message
       id: tag_data
-      uses: ericcornelissen/git-tag-annotation-action@v2
+      run: |
+        $tagMessage = git tag -l --format='%(contents)' $env:RELEASE_VERSION
+        echo "git-tag-annotation<<EOF" >> $env:GITHUB_OUTPUT
+        echo $tagMessage >> $env:GITHUB_OUTPUT
+        echo "EOF" >> $env:GITHUB_OUTPUT
     - name: Test ENV
       run: |
         echo $RELEASE_VERSION
