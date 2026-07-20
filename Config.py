@@ -22,8 +22,8 @@ config_path = os.path.join(working_dir, 'config.json')
 sn_list_path = os.path.join(working_dir, 'sn_list.txt')
 cookie_path = os.path.join(working_dir, 'cookie.txt')
 logs_dir = os.path.join(working_dir, 'logs')
-aniGamerPlus_version = 'v24.6'
-latest_config_version = 17.2
+aniGamerPlus_version = 'v25.0'
+latest_config_version = 18.0
 latest_database_version = 2.0
 cookie = None
 max_multi_thread = 5
@@ -104,7 +104,7 @@ def __init_settings():
                 'video_filename_extension': 'mp4',  # 视频扩展名/封装格式
                 'zerofill': 1,  # 剧集名补零, 此项填补足位数, 小于等于 1 即不补零
                 # cookie的自动刷新对 UA 有检查
-                'ua': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
+                'ua': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
                 'use_proxy': False,
                 'proxy': 'http://user:passwd@example.com:1000',  # 代理功能, config_version v13.0 删除链式代理
                 "no_proxy_akamai": False,  # 不代理 akamai CDN
@@ -221,7 +221,7 @@ def __update_settings(old_settings):  # 升级配置文件
         new_settings['lock_resolution'] = False  # v4.1 新增分辨率锁定开关
 
     if 'ua' not in new_settings.keys():  # v4.2 新增 UA 配置
-        new_settings['ua'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.96 Safari/537.36"
+        new_settings['ua'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
 
     if 'classify_bangumi' not in new_settings.keys():
         new_settings['classify_bangumi'] = True  # v5.0 新增是否建立番剧目录开关
@@ -387,6 +387,13 @@ def __update_settings(old_settings):  # 升级配置文件
         # v24.4 sn解析冷卻時間(秒)
         new_settings['parse_sn_cd'] = 5
 
+    if 'browser_fingerprint' not in new_settings.keys():
+        # v25.0 添加浏览器指纹配置
+        new_settings['browser_fingerprint'] = {
+            'ja3': '771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-10-65281-17613-43-45-16-5-65037-13-35-27-18-23-11-51,4588-29-23-24,0',
+            'akamai': '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p'
+        }
+
     new_settings['config_version'] = latest_config_version
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(new_settings, f, ensure_ascii=False, indent=4)
@@ -503,7 +510,7 @@ def del_bom(path, display=True):
                 break
 
 
-def read_settings(config=''):
+def read_settings(config='') -> dict:
     if config == '':
         if not os.path.exists(config_path):
             __init_settings()
@@ -540,7 +547,7 @@ def read_settings(config=''):
 
     if not settings['ua']:
         # 如果 ua 项目为空
-        settings['ua'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.96 Safari/537.36"
+        settings['ua'] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
 
     # 如果用户自定了番剧目录且存在
     if settings['bangumi_dir'] and os.path.exists(settings['bangumi_dir']):
@@ -776,10 +783,12 @@ def renew_cookies(new_cookie, log=True):
 def bahamut_request(method, url, **kwargs):
     # 巴哈站點請求統一走 curl-cffi，通過 TLS 指紋驗證
     settings = read_settings()
+    ja3 = settings['browser_fingerprint']['ja3']
+    akamai = settings['browser_fingerprint']['akamai']
     if 'firefox' in settings['ua'].lower():
         impersonate = 'firefox'
     else:
-        impersonate = 'chrome124'
+        impersonate = 'chrome'
     headers = dict(kwargs.pop('headers', None) or {})
     if not any(k.lower() == 'user-agent' for k in headers):
         headers['User-Agent'] = settings['ua']
@@ -787,7 +796,7 @@ def bahamut_request(method, url, **kwargs):
     if settings.get('use_proxy') and settings.get('proxy'):
         kwargs['proxies'] = {'https': settings['proxy'], 'http': settings['proxy']}
     kwargs.setdefault('timeout', 10)
-    session = curl_requests.Session(impersonate=impersonate)
+    session = curl_requests.Session(impersonate=impersonate, ja3=ja3, akamai=akamai)
     try:
         return session.request(method, url, **kwargs)
     except curl_requests.RequestsError as e:
