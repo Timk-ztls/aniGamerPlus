@@ -6,6 +6,11 @@ on:
   push:
     tags:
       - v*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 v24.7'
+        required: true
 jobs:
   build:
     runs-on: windows-2019
