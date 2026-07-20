@@ -7,7 +7,7 @@ import ftplib
 import shutil
 import traceback
 import Config
-import pyhttpx
+from curl_cffi import requests as cffi_requests
 from Danmu import Danmu
 from bs4 import BeautifulSoup
 import re, time, os, platform, subprocess, requests, random, sys
@@ -31,11 +31,10 @@ class Anime:
         self._temp_dir = self._settings['temp_dir']
         self._gost_port = str(gost_port)
 
-        self._session = requests.session()
         if 'firefox' in self._settings['ua'].lower():
-            self._pyhttpx_session = pyhttpx.HttpSession(browser_type='firefox')
+            self._session = cffi_requests.Session(impersonate='firefox135')
         else:
-            self._pyhttpx_session = pyhttpx.HttpSession(browser_type='chrome')
+            self._session = cffi_requests.Session(impersonate='chrome131')
         self._title = ''
         self._sn = sn
         self._bangumi_name = ''
@@ -277,15 +276,9 @@ class Anime:
             cookies = {}
         while True:
             try:
-                if use_pyhttpx:
-                    # https://github.com/miyouzi/aniGamerPlus/issues/249 pyhttpx 作者 在改動
-                    # https://github.com/zero3301/pyhttpx/commit/4735190df741f4c00287ec948f0734fd2c21bfee
-                    # 把 proxy 驗證放到了 proxies URL 裏面
-                    f = self._pyhttpx_session.get(req, headers=current_header, cookies=cookies, timeout=10,
-                                                  proxies=self._proxies)
-                else:
-                    f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10)
-            except requests.exceptions.RequestException as e:
+                f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10,
+                                      proxies=self._proxies if self._proxies else None)
+            except (cffi_requests.exceptions.RequestException, Exception) as e:
                 if error_cnt >= max_retry >= 0:
                     raise TryTooManyTimeError('任務狀態: sn=' + str(self._sn) + ' 请求失败次数过多！请求链接：\n%s' % req)
                 err_detail = 'ERROR: 请求失败！except：\n' + str(e) + '\n3s后重试(最多重试' + str(max_retry) + '次)'
@@ -367,11 +360,8 @@ class Anime:
 
         return f
 
-    def __request_json(self, req, no_cookies=False, show_fail=True, max_retry=3, addition_header=None, use_pyhttpx = False):
-        if use_pyhttpx:
-            return self.__request(req, no_cookies, show_fail, max_retry, addition_header, use_pyhttpx).json
-        else:
-            return self.__request(req, no_cookies, show_fail, max_retry, addition_header, use_pyhttpx).json()
+    def __request_json(self, req, no_cookies=False, show_fail=True, max_retry=3, addition_header=None, use_pyhttpx=False):
+        return self.__request(req, no_cookies, show_fail, max_retry, addition_header, use_pyhttpx).json()
 
     def __get_m3u8_dict(self):
         # m3u8获取模块参考自 https://github.com/c0re100/BahamutAnimeDownloader
