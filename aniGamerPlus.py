@@ -19,6 +19,7 @@ import platform
 import socket
 import pip_system_certs.wrapt_requests
 import requests
+from curl_cffi import requests as cffi_requests
 
 import Config
 from Anime import Anime, TryTooManyTimeError
@@ -771,7 +772,8 @@ def __init_proxy():
 
 
 def do_request(url, headers, cookies, params=None):
-    return requests.get(url, headers=headers, cookies=cookies, params=params)
+    _session = cffi_requests.Session(impersonate='chrome131')
+    return _session.get(url, headers=headers, cookies=cookies, params=params)
 
 
 def parse_anime(soup, animes, headers, cookies):
