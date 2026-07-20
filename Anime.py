@@ -10,7 +10,8 @@ import Config
 from curl_cffi import requests as cffi_requests
 from Danmu import Danmu
 from bs4 import BeautifulSoup
-import re, time, os, platform, subprocess, requests, random, sys
+import re, time, os, platform, requests, random, sys
+from gevent import subprocess
 from ColorPrint import err_print
 from ftplib import FTP, FTP_TLS
 import socket
