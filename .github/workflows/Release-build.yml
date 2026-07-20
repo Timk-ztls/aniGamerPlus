@@ -11,6 +11,9 @@ on:
       version:
         description: '版本号 (例如: v24.7)'
         required: true
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
