@@ -454,7 +454,7 @@ def __update_database(old_version):
     __color_print(0, msg, status=2, no_sn=True)
 
 
-def __read_settings_file():
+def __read_settings_file() -> dict:
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             # 转义win路径
@@ -605,6 +605,14 @@ def read_settings(config='') -> dict:
             settings['use_dashboard'] = False
             __color_print(0, 'Web控制面板', '未發現控制面板所必須的Dashboard資料夾, 强制禁用控制面板!', no_sn=True, status=1)
             write_settings(settings)
+
+    if settings.get('browser_fingerprint', {}).get('ja3'):
+        # https://github.com/lexiforest/curl_cffi/issues/549
+        # 移除 curl-cffi 不支持的指纹参数
+        settings['browser_fingerprint']['ja3'] = settings.get('browser_fingerprint', {}).get('ja3').replace('-17613', '').replace('-41', '')
+
+    # v25.0 强制冷却时间3s以上
+    settings['parse_sn_cd'] = max(settings['parse_sn_cd'], 3)
 
     return settings
 
@@ -783,8 +791,9 @@ def renew_cookies(new_cookie, log=True):
 def bahamut_request(method, url, **kwargs):
     # 巴哈站點請求統一走 curl-cffi，通過 TLS 指紋驗證
     settings = read_settings()
-    ja3 = settings['browser_fingerprint']['ja3']
-    akamai = settings['browser_fingerprint']['akamai']
+    bf = settings.get('browser_fingerprint', {})
+    ja3 = bf.get('ja3') or None
+    akamai = bf.get('akamai') or None
     if 'firefox' in settings['ua'].lower():
         impersonate = 'firefox'
     else:

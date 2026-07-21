@@ -31,11 +31,15 @@ class Anime:
         self._temp_dir = self._settings['temp_dir']
         self._gost_port = str(gost_port)
 
+        self._session = requests.session()
         if 'firefox' in self._settings['ua'].lower():
             impersonate = 'firefox'
         else:
-            impersonate = 'chrome124'
-        self._session = curl_requests.Session(impersonate=impersonate)
+            impersonate = 'chrome'
+        bf = self._settings.get('browser_fingerprint', {})
+        self._fingerprint_session = curl_requests.Session(impersonate=impersonate
+                                                          , ja3=bf.get('ja3') or None
+                                                          , akamai=bf.get('akamai') or None)
         self._title = ''
         self._sn = sn
         self._bangumi_name = ''
@@ -134,7 +138,7 @@ class Anime:
             self._src = self.__request_json(f'https://api.gamer.com.tw/mobile_app/anime/v4/video.php?sn={self._sn}', no_cookies=True)
         else:
             req = f'https://ani.gamer.com.tw/animeVideo.php?sn={self._sn}'
-            f = self.__request(req, no_cookies=True)
+            f = self.__request(req, no_cookies=True, verify_fingerprint=True)
             self._src = BeautifulSoup(f.content, "lxml")
 
     def __get_title(self):
@@ -260,7 +264,7 @@ class Anime:
         else:
             self._req_header = self._web_header
 
-    def __request(self, req, no_cookies=False, show_fail=True, max_retry=3, addition_header=None, use_pyhttpx = False):
+    def __request(self, req, no_cookies=False, show_fail=True, max_retry=3, addition_header=None, verify_fingerprint=False):
         # 设置 header
         current_header = self._req_header
         if addition_header is None:
@@ -277,9 +281,12 @@ class Anime:
             cookies = {}
         while True:
             try:
-                proxies = self._proxies if self._proxies else None
-                f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10, proxies=proxies)
-            except (requests.exceptions.RequestException, curl_requests.RequestsError) as e:
+                if verify_fingerprint:
+                    proxies = self._proxies if self._proxies else None
+                    f = self._fingerprint_session.get(req, headers=current_header, cookies=cookies, timeout=10, proxies=proxies)
+                else:
+                    f = self._session.get(req, headers=current_header, cookies=cookies, timeout=10)
+            except requests.exceptions.RequestException as e:
                 if error_cnt >= max_retry >= 0:
                     raise TryTooManyTimeError('任務狀態: sn=' + str(self._sn) + ' 请求失败次数过多！请求链接：\n%s' % req)
                 err_detail = 'ERROR: 请求失败！except：\n' + str(e) + '\n3s后重试(最多重试' + str(max_retry) + '次)'
@@ -292,12 +299,12 @@ class Anime:
         # 处理 cookie
         if not self._cookies:
             # 当实例中尚无 cookie, 则读取
-            self._cookies = self._session.cookies.get_dict()
+            self._cookies = self._session.cookies
         elif 'nologinuser' not in self._cookies.keys() and 'BAHAID' not in self._cookies.keys():
             # 处理游客cookie
-            if 'nologinuser' in self._session.cookies.get_dict().keys():
+            if 'nologinuser' in self._session.cookies.keys():
                 # self._cookies['nologinuser'] = self._session.cookies['nologinuser']
-                self._cookies = self._session.cookies.get_dict()
+                self._cookies = self._session.cookies
         else:  # 如果用户提供了 cookie, 则处理cookie刷新
             if 'set-cookie' in f.headers.keys():  # 发现server响应了set-cookie
                 if 'deleted' in f.headers.get('set-cookie'):
@@ -344,10 +351,10 @@ class Anime:
                     # 20220115 简化 cookie 刷新逻辑
                     err_print(self._sn, '收到新cookie', display=False)
 
-                    self._cookies.update(self._session.cookies.get_dict())
+                    self._cookies.update(self._session.cookies)
                     Config.renew_cookies(self._cookies, log=False)
 
-                    key_list_str = ', '.join(self._session.cookies.get_dict().keys())
+                    key_list_str = ', '.join(self._session.cookies.keys())
                     err_print(self._sn, f'用戶cookie刷新 {key_list_str} ', display=False)
 
                     self.__request('https://ani.gamer.com.tw/')
@@ -361,8 +368,11 @@ class Anime:
 
         return f
 
-    def __request_json(self, req, no_cookies=False, show_fail=True, max_retry=3, addition_header=None, use_pyhttpx = False):
-        return self.__request(req, no_cookies, show_fail, max_retry, addition_header, use_pyhttpx).json()
+    def __request_json(self, req, no_cookies=False, show_fail=True, max_retry=3, addition_header=None, verify_fingerprint=False):
+        if verify_fingerprint:
+            return self.__request(req, no_cookies, show_fail, max_retry, addition_header, verify_fingerprint).json
+        else:
+            return self.__request(req, no_cookies, show_fail, max_retry, addition_header, verify_fingerprint).json()
 
     def __get_m3u8_dict(self):
         # m3u8获取模块参考自 https://github.com/c0re100/BahamutAnimeDownloader
@@ -1360,6 +1370,6 @@ class Anime:
 
 
 if __name__ == '__main__':
-    a = Anime('40035')
-    # print(a.get_m3u8_dict())
-    a.download('360')
+    a = Anime('49911')
+    print(a.get_m3u8_dict())
+    a.download('1080')
