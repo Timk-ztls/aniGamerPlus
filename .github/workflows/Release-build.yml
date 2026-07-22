@@ -11,6 +11,9 @@ on:
       version:
         description: '版本号 (例如: v24.7)'
         required: true
+      release_body:
+        description: '更新内容 (Release 说明，支持多行 Markdown)'
+        required: false
 permissions:
   contents: write
 
@@ -76,7 +79,7 @@ jobs:
       with:
         tag_name: ${{ env.RELEASE_VERSION }}
         name: "${{ env.RELEASE_TITLE }}"
-        body: ${{ steps.tag_data.outputs.git-tag-annotation }}
+        body: ${{ github.event_name == 'workflow_dispatch' && inputs.release_body || steps.tag_data.outputs.git-tag-annotation }}
         draft: false
         prerelease: false
         files: ./${{ env.RELEASE_FILENAME }}
