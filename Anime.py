@@ -382,11 +382,16 @@ class Anime:
                             self._req_header = self._mobile_header
                             err_print(self._sn, '切換回 App Header 進行影片解析', display=False)
 
-        # 同步 session 中已更新的短生命周期 cookie（如 __cf_bm）
+        # 同步 session 中已更新或新增的 cookie（如 __cf_bm、ANIME_SIGN 等）
         if isinstance(self._cookies, dict) and self._cookies and self._session.cookies:
+            cookie_changed = False
             for key in list(self._session.cookies.keys()):
-                if key in self._cookies:
-                    self._cookies[key] = self._session.cookies[key]
+                new_val = self._session.cookies[key]
+                if self._cookies.get(key) != new_val:
+                    self._cookies[key] = new_val
+                    cookie_changed = True
+            if cookie_changed:
+                Config.renew_cookies(self._cookies, log=False)
 
         return f
 
