@@ -324,6 +324,26 @@ def download_cd_counter():
     thread_limiter.release()  # 并发下载限制器
 
 
+def cookie_keep_alive():
+    # 當本次更新無任何下載任務時, 隨機挑選一個 sn 進行輕量解析以維持 BAHARUNE cookie 有效
+    cookies = Config.read_cookie()
+    if not cookies or ('BAHAID' not in cookies and 'nologinuser' in cookies):
+        return  # 游客帳號無需保活
+    if not sn_dict:
+        return
+    sn = random.choice(list(sn_dict.keys()))
+    err_print(0, 'Cookie 保活', '本次更新無下載任務, 隨機解析 sn=' + str(sn) + ' 以維持 cookie 有效', no_sn=True)
+    anime = build_anime(sn)
+    if anime['failed']:
+        err_print(0, 'Cookie 保活', '隨機解析失敗', status=1, no_sn=True)
+        return
+    try:
+        anime['anime'].refresh_token()
+        err_print(0, 'Cookie 保活', 'Cookie 刷新請求已送出', status=2, no_sn=True)
+    except BaseException as e:
+        err_print(0, 'Cookie 保活', 'Cookie 刷新失敗: ' + str(e), status=1, no_sn=True)
+
+
 def check_tasks():
     for sn in sn_dict.keys():
         anime = build_anime(sn)
@@ -1043,6 +1063,8 @@ if __name__ == '__main__':
                     err_print(task_sn, '加入任务列隊')
         info = '本次更新添加了 '+str(new_tasks_counter)+' 個新任務, 目前列隊中共有 ' + str(len(processing_queue)) + ' 個任務'
         err_print(0, '更新資訊', info, no_sn=True)
+        if new_tasks_counter == 0 and not processing_queue:
+            cookie_keep_alive()
         err_print(0, '更新终了', no_sn=True)
         print()
         for i in range(settings['check_frequency'] * 60):
