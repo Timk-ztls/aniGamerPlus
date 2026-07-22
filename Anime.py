@@ -550,6 +550,25 @@ class Anime:
             self.__get_m3u8_dict()
         return self._m3u8_dict
 
+    def refresh_token(self):
+        """模擬影片解析的前置步驟（取得 device ID 並呼叫 token.php），
+        以觸發伺服器端的 cookie 刷新機制，而無需實際下載影片。"""
+        def random_string(num):
+            chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+            random.seed(int(round(time.time() * 1000)))
+            result = []
+            for i in range(num):
+                result.append(chars[random.randint(0, len(chars) - 1)])
+            return ''.join(result)
+
+        device_id = self.__request_json('https://ani.gamer.com.tw/ajax/getdeviceid.php')['deviceid']
+        if self._settings['use_mobile_api']:
+            req = f'https://api.gamer.com.tw/mobile_app/anime/v3/m3u8.php?videoSn={str(self._sn)}&device={device_id}'
+        else:
+            req = ('https://ani.gamer.com.tw/ajax/token.php?adID=0&sn=' + str(self._sn)
+                   + '&device=' + device_id + '&hash=' + random_string(12))
+        self.__request_json(req)
+
     def get_season_num(self, zh_num):
         zh2digit_table = {'零': 0, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
 
