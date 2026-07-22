@@ -304,7 +304,10 @@ class Anime:
                     # set-cookie刷新cookie只有一次机会, 如果其他线程先收到, 则此处会返回 deleted
                     # 等待其他线程刷新了cookie, 重新读入cookie
 
-                    if self._settings['use_mobile_api'] and 'X-Bahamut-App-Android' in self._req_header:
+                    if getattr(self, '_refreshing_cookie', False):
+                        # 正在主动刷新过程中，跳过避免递归
+                        pass
+                    elif self._settings['use_mobile_api'] and 'X-Bahamut-App-Android' in self._req_header:
                         # 使用移动API将无法进行 cookie 刷新, 改回 header 刷新 cookie
                         err_print(self._sn, '嘗試切換回 Web Header 刷新 Cookie', display=False)
                         self._req_header = self._web_header
@@ -330,6 +333,26 @@ class Anime:
                                 random_wait_time = random.uniform(2, 5)
                                 time.sleep(random_wait_time)
                                 try_counter = try_counter + 1
+                        if not succeed_flag:
+                            # 单线程情况：主动向服务器获取新 cookie，不依赖其他线程
+                            err_print(self._sn, '嘗試主動向伺服器獲取新 cookie', display=False)
+                            saved_req_header = self._req_header
+                            self._req_header = self._web_header
+                            self._refreshing_cookie = True
+                            try:
+                                self.__request('https://ani.gamer.com.tw/')
+                            except Exception:
+                                pass
+                            finally:
+                                self._refreshing_cookie = False
+                            # 检查主动刷新是否成功（else 分支会调用 Config.renew_cookies 重置缓存）
+                            new_cookie = Config.read_cookie()
+                            if 'BAHARUNE' in new_cookie and new_cookie.get('BAHARUNE') != old_BAHARUNE:
+                                succeed_flag = True
+                                self._cookies = new_cookie
+                                err_print(self._sn, '主動刷新 cookie 成功', display=False)
+                            else:
+                                self._req_header = saved_req_header  # 刷新失败，恢复原始 header
                         if not succeed_flag:
                             self._cookies = {}
                             err_print(0, '用戶cookie更新失敗! 使用游客身份訪問', status=1, no_sn=True)
@@ -358,6 +381,17 @@ class Anime:
                             # 当使用 APP API 临时切换至 Web API 更新 Cookie 时，Cookie 更新成功再切换回 App Header
                             self._req_header = self._mobile_header
                             err_print(self._sn, '切換回 App Header 進行影片解析', display=False)
+
+        # 同步 session 中已更新或新增的 cookie（如 __cf_bm、ANIME_SIGN 等）
+        if isinstance(self._cookies, dict) and self._cookies and self._session.cookies:
+            cookie_changed = False
+            for key in list(self._session.cookies.keys()):
+                new_val = self._session.cookies[key]
+                if self._cookies.get(key) != new_val:
+                    self._cookies[key] = new_val
+                    cookie_changed = True
+            if cookie_changed:
+                Config.renew_cookies(self._cookies, log=False)
 
         return f
 
