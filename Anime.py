@@ -365,22 +365,30 @@ class Anime:
                 else:
                     # 本线程收到了新cookie
                     # 20220115 简化 cookie 刷新逻辑
-                    err_print(self._sn, '收到新cookie', display=False)
+                    if getattr(self, '_refreshing_cookie', False):
+                        # 正在主动刷新过程中，跳过避免递归
+                        pass
+                    else:
+                        err_print(self._sn, '收到新cookie', display=False)
 
-                    self._cookies.update(self._session.cookies)
-                    Config.renew_cookies(self._cookies, log=False)
+                        self._cookies.update(self._session.cookies)
+                        Config.renew_cookies(self._cookies, log=False)
 
-                    key_list_str = ', '.join(self._session.cookies.keys())
-                    err_print(self._sn, f'用戶cookie刷新 {key_list_str} ', display=False)
+                        key_list_str = ', '.join(self._session.cookies.keys())
+                        err_print(self._sn, f'用戶cookie刷新 {key_list_str} ', display=False)
 
-                    self.__request('https://ani.gamer.com.tw/')
-                    # 20210724 动画疯一步到位刷新 Cookie
-                    if 'BAHARUNE' in f.headers.get('set-cookie'):
-                        err_print(0, '用戶cookie已更新', status=2, no_sn=True)
-                        if self._settings['use_mobile_api']:
-                            # 当使用 APP API 临时切换至 Web API 更新 Cookie 时，Cookie 更新成功再切换回 App Header
-                            self._req_header = self._mobile_header
-                            err_print(self._sn, '切換回 App Header 進行影片解析', display=False)
+                        self._refreshing_cookie = True
+                        try:
+                            self.__request('https://ani.gamer.com.tw/')
+                        finally:
+                            self._refreshing_cookie = False
+                        # 20210724 动画疯一步到位刷新 Cookie
+                        if 'BAHARUNE' in f.headers.get('set-cookie'):
+                            err_print(0, '用戶cookie已更新', status=2, no_sn=True)
+                            if self._settings['use_mobile_api']:
+                                # 当使用 APP API 临时切换至 Web API 更新 Cookie 时，Cookie 更新成功再切换回 App Header
+                                self._req_header = self._mobile_header
+                                err_print(self._sn, '切換回 App Header 進行影片解析', display=False)
 
         # 同步 session 中已更新或新增的 cookie（如 __cf_bm、ANIME_SIGN 等）
         if isinstance(self._cookies, dict) and self._cookies and self._session.cookies:
