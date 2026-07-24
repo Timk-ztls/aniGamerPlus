@@ -106,6 +106,7 @@ def config():
         if id == 'browser_fingerprint':
             web_settings['browser_fingerprint_ja3'] = settings[id]['ja3']
             web_settings['browser_fingerprint_akamai'] = settings[id]['akamai']
+            web_settings['browser_fingerprint_permute_extensions'] = settings[id].get('permute_extensions', False)
         else:
             web_settings[id] = settings[id]  # 仅返回 web 需要的配置
 
@@ -120,7 +121,8 @@ def recv_config():
         if id == 'browser_fingerprint':
             new_settings[id] = {
                 'ja3': data.get('browser_fingerprint_ja3', ''),
-                'akamai': data.get('browser_fingerprint_akamai', '')
+                'akamai': data.get('browser_fingerprint_akamai', ''),
+                'permute_extensions': data.get('browser_fingerprint_permute_extensions', False)
             }
         else:
             new_settings[id] = data[id]  # 更新配置

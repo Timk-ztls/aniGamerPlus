@@ -90,6 +90,8 @@ function renderJson() {
 	// 渲染浏览器指纹子字段
 	$('#browser_fingerprint_ja3').val(dataArrays.browser_fingerprint_ja3);
 	$('#browser_fingerprint_akamai').val(dataArrays.browser_fingerprint_akamai);
+	// 开关: 固定 JA3 指纹 = 关闭 TLS 扩展顺序随机化(permute_extensions), 语义取反
+	$('#fix_ja3_fingerprint').bootstrapSwitch('state', !dataArrays.browser_fingerprint_permute_extensions);
 }
 
 
@@ -138,9 +140,12 @@ function readSettings() {
 		}
 	}
 	// 合并浏览器指纹配置
+	// 固定 JA3 指纹开关取反映射到 permute_extensions
+	dataArrays["browser_fingerprint_permute_extensions"] = !$("#fix_ja3_fingerprint").is(":checked");
 	dataArrays["browser_fingerprint"] = {
 		"ja3": $("#browser_fingerprint_ja3").val(),
-		"akamai": $("#browser_fingerprint_akamai").val()
+		"akamai": $("#browser_fingerprint_akamai").val(),
+		"permute_extensions": dataArrays["browser_fingerprint_permute_extensions"]
 	};
 
 	$.ajax({
