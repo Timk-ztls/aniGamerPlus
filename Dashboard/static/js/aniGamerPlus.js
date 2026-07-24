@@ -91,8 +91,25 @@ function renderJson() {
 	$('#browser_fingerprint_ja3').val(dataArrays.browser_fingerprint_ja3);
 	$('#browser_fingerprint_akamai').val(dataArrays.browser_fingerprint_akamai);
 	// 开关: 固定 JA3 指纹 = 关闭 TLS 扩展顺序随机化(permute_extensions), 语义取反
-	$('#fix_ja3_fingerprint').bootstrapSwitch('state', !dataArrays.browser_fingerprint_permute_extensions);
+	var fixJa3 = !dataArrays.browser_fingerprint_permute_extensions;
+	$('#fix_ja3_fingerprint').bootstrapSwitch('state', fixJa3);
+	// 仅当开启「固定 JA3 指纹」时才显示 JA3 输入框
+	toggleJa3InputGroup(fixJa3);
 }
+
+// 根据「固定 JA3 指纹」开关状态显示/隐藏 JA3 输入框
+function toggleJa3InputGroup(fixJa3) {
+	if (fixJa3) {
+		$('#ja3_input_group').show();
+	} else {
+		$('#ja3_input_group').hide();
+	}
+}
+
+// 开关切换时联动显示/隐藏 JA3 输入框
+$(document).on('switchChange.bootstrapSwitch', '#fix_ja3_fingerprint', function(event, state) {
+	toggleJa3InputGroup(state);
+});
 
 
 function readSettings() {
