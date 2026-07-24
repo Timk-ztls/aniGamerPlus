@@ -9,6 +9,7 @@ import os, json, re, sys, requests, time, random, codecs, chardet
 import sqlite3
 import socket
 from curl_cffi import requests as curl_requests
+from curl_cffi.requests import ExtraFingerprints
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -23,7 +24,7 @@ sn_list_path = os.path.join(working_dir, 'sn_list.txt')
 cookie_path = os.path.join(working_dir, 'cookie.txt')
 logs_dir = os.path.join(working_dir, 'logs')
 aniGamerPlus_version = 'v25.1'
-latest_config_version = 18.0
+latest_config_version = 19.0
 latest_database_version = 2.0
 cookie = None
 max_multi_thread = 5
@@ -107,7 +108,11 @@ def __init_settings():
                 'ua': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
                 "browser_fingerprint": {
                     "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,43-35-65281-16-23-27-65037-10-18-45-17613-51-11-0-5-13-41,4588-29-23-24,0",
-                    "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p"
+                    "akamai": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+                    # 是否随机重排 TLS ClientHello 扩展顺序。真实 Chrome 自 110 版起默认每次握手随机打乱扩展顺序，
+                    # 开启后每次请求的 JA3 都会变化(更贴近真人)，对 JA4 无影响(JA4 计算时会先对扩展排序)。
+                    # 当写死的 ja3 对应的是 Chrome >= 110 时，建议设为 True; 若模拟旧版浏览器则保持 False。
+                    "permute_extensions": False
                 },
                 'use_proxy': False,
                 'proxy': 'http://user:passwd@example.com:1000',  # 代理功能, config_version v13.0 删除链式代理
@@ -397,6 +402,10 @@ def __update_settings(old_settings):  # 升级配置文件
             'ja3': '771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-10-65281-17613-43-45-16-5-65037-13-35-27-18-23-11-51,4588-29-23-24,0',
             'akamai': '1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p'
         }
+
+    if 'permute_extensions' not in new_settings.get('browser_fingerprint', {}).keys():
+        # 添加 TLS 扩展顺序随机化开关, 默认关闭以保持原有行为
+        new_settings['browser_fingerprint']['permute_extensions'] = False
 
     new_settings['config_version'] = latest_config_version
     with open(config_path, 'w', encoding='utf-8') as f:
@@ -798,6 +807,7 @@ def bahamut_request(method, url, **kwargs):
     bf = settings.get('browser_fingerprint', {})
     ja3 = bf.get('ja3') or None
     akamai = bf.get('akamai') or None
+    extra_fp = ExtraFingerprints(tls_permute_extensions=True) if bf.get('permute_extensions') else None
     if 'firefox' in settings['ua'].lower():
         impersonate = 'firefox'
     else:
@@ -809,7 +819,7 @@ def bahamut_request(method, url, **kwargs):
     if settings.get('use_proxy') and settings.get('proxy'):
         kwargs['proxies'] = {'https': settings['proxy'], 'http': settings['proxy']}
     kwargs.setdefault('timeout', 10)
-    session = curl_requests.Session(impersonate=impersonate, ja3=ja3, akamai=akamai)
+    session = curl_requests.Session(impersonate=impersonate, ja3=ja3, akamai=akamai, extra_fp=extra_fp)
     try:
         return session.request(method, url, **kwargs)
     except curl_requests.RequestsError as e:

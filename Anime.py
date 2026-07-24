@@ -8,6 +8,7 @@ import shutil
 import traceback
 import Config
 from curl_cffi import requests as curl_requests
+from curl_cffi.requests import ExtraFingerprints
 from Danmu import Danmu
 from bs4 import BeautifulSoup
 import re, time, os, platform, subprocess, requests, random, sys
@@ -37,9 +38,11 @@ class Anime:
         else:
             impersonate = 'chrome'
         bf = self._settings.get('browser_fingerprint', {})
+        extra_fp = ExtraFingerprints(tls_permute_extensions=True) if bf.get('permute_extensions') else None
         self._fingerprint_session = curl_requests.Session(impersonate=impersonate
                                                           , ja3=bf.get('ja3') or None
-                                                          , akamai=bf.get('akamai') or None)
+                                                          , akamai=bf.get('akamai') or None
+                                                          , extra_fp=extra_fp)
         self._title = ''
         self._sn = sn
         self._bangumi_name = ''
